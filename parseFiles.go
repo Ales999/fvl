@@ -41,7 +41,9 @@ func NewIpFullInfo(
 }
 
 func (inf *IpFullInfo) String() {
-	fmt.Println("Host:", inf.hostname, "Iface:", inf.faceName, "Vrf:", inf.vrfName, "AclIn:", inf.aclIn, "AclOut:", inf.aclOut)
+	fmt.Println("Host:", inf.hostname, "Iface:", inf.faceName, "Vrf:", inf.vrfName,
+		"IfaceIp:", inf.netPrefix.String(),
+		"AclIn:", inf.aclIn, "AclOut:", inf.aclOut)
 }
 
 type AgregInfo struct {
@@ -57,7 +59,6 @@ func ParseFiles(patchForFiles string, fileNames []string, sourceIp string, desti
 	var destinationIpLen = len(destinationIp)
 
 	if sourceIpLen > 0 {
-		// Корутины тут вероятно ?
 		for _, file := range fileNames {
 			parseFile := filepath.Join(patchForFiles, file)
 			srcAddr, err := netip.ParseAddr(sourceIp)
@@ -76,7 +77,6 @@ func ParseFiles(patchForFiles string, fileNames []string, sourceIp string, desti
 	}
 
 	if destinationIpLen > 0 {
-		// Корутины тут вероятно ?
 		for _, file := range fileNames {
 			parseFile := filepath.Join(patchForFiles, file)
 			dstAddr, err := netip.ParseAddr(destinationIp)
@@ -97,7 +97,7 @@ func ParseFiles(patchForFiles string, fileNames []string, sourceIp string, desti
 	// Result:
 
 	if sourceIpLen > 0 {
-		fmt.Println("Source:")
+		//fmt.Println("Source:")
 		for _, src := range ainfo.src {
 			src.String()
 		}
