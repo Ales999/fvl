@@ -162,14 +162,14 @@ func ParseFile(fullPatchFile string, ip netip.Addr) (IpFullInfo, error) {
 				tlsts = txtlines[n+1:]
 			}
 
+			//Очистим от старых записей.
+			vrfName = ""
 			// Ищем строки с IP и MASK
 			for f, tlst := range tlsts {
 				// Если блок интерфейса заканчивается то прерываем данный блок
 				if !strings.HasPrefix(tlst, " ") {
 					break
 				}
-				//Очистим от старых записей.
-				vrfName = ""
 				if strings.HasPrefix(tlst, " vrf forwarding") || strings.HasPrefix(tlst, " ip vrf forwarding") {
 					vrfName = parseVrfName(tlst)
 				}
