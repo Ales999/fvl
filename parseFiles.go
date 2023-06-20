@@ -176,7 +176,10 @@ func ParseFile(fullPatchFile string, ip netip.Addr) (IpFullInfo, error) {
 				//
 				if strings.HasPrefix(tlst, " ip address ") {
 
-					netPrefix = parseIpMaskFromLine(tlst)
+					netPrefix, err = parseIpMaskFromLine(tlst)
+					if err != nil {
+						continue
+					}
 
 					// Если есть совпадение префикса с искомым, то ищем все остальное.
 					if netPrefix.Contains(ip) {
@@ -250,7 +253,7 @@ func parseInterfaceName(line string) string {
 
 }
 
-func parseIpMaskFromLine(line string) netip.Prefix {
+func parseIpMaskFromLine(line string) (netip.Prefix, error) {
 
 	// Парсим строку - разложим по частям
 	cuttingByFour := strings.FieldsFunc(line, func(r rune) bool {
@@ -260,7 +263,8 @@ func parseIpMaskFromLine(line string) netip.Prefix {
 	//ipStr := cuttingByFour[2]
 	ipAddr, err := netip.ParseAddr(cuttingByFour[2])
 	if err != nil {
-		fmt.Println("Error parsing IP from", cuttingByFour[2], "\n", err)
+		//fmt.Println("Error parsing IP from", cuttingByFour[2])
+		return netip.Prefix{}, err
 	}
 
 	maskStr := cuttingByFour[3]
@@ -273,6 +277,6 @@ func parseIpMaskFromLine(line string) netip.Prefix {
 
 	//fmt.Println(ipAddr, " -:- ", maskStr, " Mask Leingt:", lengthMask, prefix.String())
 
-	return prefix
+	return prefix, nil
 
 }
