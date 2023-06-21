@@ -166,7 +166,7 @@ func ParseFile(fullPatchFile string, ip netip.Addr) (IpFullInfo, error) {
 			vrfName = ""
 			// Ищем строки с IP и MASK
 			for f, tlst := range tlsts {
-				// Если блок интерфейса заканчивается то прерываем данный блок
+				// Если блок интерфейса заканчивается то прерываем данный for
 				if !strings.HasPrefix(tlst, " ") {
 					break
 				}
@@ -174,7 +174,7 @@ func ParseFile(fullPatchFile string, ip netip.Addr) (IpFullInfo, error) {
 					vrfName = parseVrfName(tlst)
 				}
 
-				//
+				// Если нашли запись об IP/MASK
 				if strings.HasPrefix(tlst, " ip address ") {
 
 					netPrefix, err = parseIpMaskFromLine(tlst)
@@ -182,17 +182,20 @@ func ParseFile(fullPatchFile string, ip netip.Addr) (IpFullInfo, error) {
 						continue
 					}
 
-					// Если есть совпадение префикса с искомым, то ищем все остальное.
+					// Если есть! совпадение префикса с искомым, то ищем все остальное.
 					if netPrefix.Contains(ip) {
 						foundByIp = true
+						aclIn = ""
+						aclOut = ""
 
-						//fmt.Println(hostname, ifaceName, prefix.String(), true)
-
-						var bodyiface = tlsts[f+1:]
-						for _, body := range bodyiface {
+						// Создаем новый срез без текущей строки и перебираем его для поиска ACL, если они есть.
+						var bodyifaces = tlsts[f+1:]
+						for _, body := range bodyifaces {
+							// Если обнаружен конец блока (он больше не начинается с пробела) то прекращаем перебор
 							if !strings.HasPrefix(body, " ") {
 								break
 							}
+
 							if strings.HasPrefix(body, " ip access-group") {
 								var aclName = parseAclName(body)
 								if strings.HasSuffix(body, "in") {
@@ -204,12 +207,12 @@ func ParseFile(fullPatchFile string, ip netip.Addr) (IpFullInfo, error) {
 
 							}
 
-						}
+						} // end for
 
 					}
 
 				}
-			}
+			} // end for
 		}
 		if foundByIp {
 			//fmt.Println(hostname, ifaceName, vrfName, prefix.String(), aclIn, aclOut)
@@ -222,21 +225,23 @@ func ParseFile(fullPatchFile string, ip netip.Addr) (IpFullInfo, error) {
 	return ret, nil
 }
 
+// parseVrfName - Разбираем строку и возвращаем название VRF
 func parseVrfName(line string) string {
-	var ret string
+
 	// Парсим строку - разложим по частям
 	cuttingByTree := strings.FieldsFunc(line, func(r rune) bool {
 		return r == ' '
 	})
-	if strings.HasPrefix(line, " vrf forwarding") {
-		ret = cuttingByTree[2]
-	} else {
-		ret = cuttingByTree[3]
-	}
 
-	return ret
+	// Если новый формат
+	if strings.HasPrefix(line, " vrf forwarding") {
+		return cuttingByTree[2]
+	}
+	// Иначе старый 'ip vrf forwarding ...'
+	return cuttingByTree[3]
 }
 
+// parseAclName - Разбираем строку и возвращаем название ACL
 func parseAclName(line string) string {
 	// Парсим строку - разложим по частям
 	cuttingByTree := strings.FieldsFunc(line, func(r rune) bool {
@@ -245,6 +250,7 @@ func parseAclName(line string) string {
 	return cuttingByTree[2]
 }
 
+// parseInterfaceName - Разбираем строку и возвращаем название интерфейса
 func parseInterfaceName(line string) string {
 	// Парсим строку - разложим по частям
 	cuttingByTree := strings.FieldsFunc(line, func(r rune) bool {
@@ -254,9 +260,16 @@ func parseInterfaceName(line string) string {
 
 }
 
+// parseIpMaskFromLine - Разбираем строку и возвращаем её IP и Netmask
+//
+// Input:
+// ' ip address 172.24.62.201 255.255.255.248'
+//
+// Output (by netip.Prefix.String()):
+// '172.24.62.201/29'
 func parseIpMaskFromLine(line string) (netip.Prefix, error) {
 
-	// Парсим строку - разложим по частям
+	// Парсим строку - разложим ёё по частям
 	cuttingByFour := strings.FieldsFunc(line, func(r rune) bool {
 		return r == ' '
 	})
@@ -268,11 +281,9 @@ func parseIpMaskFromLine(line string) (netip.Prefix, error) {
 		return netip.Prefix{}, err
 	}
 
-	maskStr := cuttingByFour[3]
-	stringMask := net.IPMask(net.ParseIP(maskStr).To4())
+	parsedMask := cuttingByFour[3]
+	stringMask := net.IPMask(net.ParseIP(parsedMask).To4())
 	lengthMask, _ := stringMask.Size()
-
-	//var prefStr = ipAddr.String() + "/" + fmt.Sprint(lengthMask)
 
 	var prefix = netip.PrefixFrom(ipAddr, lengthMask)
 
