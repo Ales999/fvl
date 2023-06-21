@@ -19,15 +19,6 @@
             "mode": "auto",
             "program": "${fileDirname}",
             "args": ["172.24.6.66", "172.24.64.194"]
-        },
-        {
-            "name": "Launch Simple",
-            "type": "go",
-            "request": "launch",
-            "mode": "auto",
-            "program": "${fileDirname}",
-            "args": ["192.168.100.100"]
         }
-
     ]
 }
