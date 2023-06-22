@@ -47,9 +47,11 @@ func main() {
 			continue
 		}
 		if fileStat {
-			// Добавляем в список для сканирования.
-			scanFiles = append(scanFiles, fName)
-			//fmt.Println(fName)
+			// Добавляем в список для сканирования только если это не '*.bak' или '*.backup' файл
+			if checkNotBakFile(e) {
+				scanFiles = append(scanFiles, fName)
+				//fmt.Println(fName)
+			}
 		}
 	}
 	if len(scanFiles) == 0 {
