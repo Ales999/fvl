@@ -19,7 +19,7 @@ func checkNotBakFile(f fs.DirEntry) bool {
 	}
 	// Пропускаем файлы с расширеними 'bak' и 'backup'
 	xtension := path.Ext(finf.Name())
-	if strings.Compare(xtension, ".bak") == 0 || strings.Compare(xtension, ".backup") == 0 {
+	if strings.Compare(xtension, ".bak") == 0 || strings.Compare(xtension, ".backup") == 0 || strings.Compare(xtension, ".save") == 0 {
 		return false
 	}
 	// Значит нам подходит, - будем добавлять в список для сканирования содержимого.
