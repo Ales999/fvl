@@ -1,27 +1,24 @@
-# Compiled Object files, Static and Dynamic libs (Shared Objects)
-*.o
-*.a
-*.so
+# Allowlisting gitignore template for GO projects prevents us
+# from adding various unwanted local files, such as generated
+# files, developer configurations or IDE-specific files etc.
+#
+# Recommended: Go.AllowList.gitignore
 
-# Folders
-_obj
-_test
+# Ignore everything
+*
 
-# Architecture Specific folders
-x86
-x64
-amd64
+# But not these files...
+!/.gitignore
 
-# Output files
-*.out
-*.exe
+!*.go
+!go.sum
+!go.mod
 
-# Go specific
-*.test
-*.prof
+!README.md
+!LICENSE
 
-# Dependency directories (remove the ones you don't use)
-/vendor/
-#go.mod
-#go.sum
-go.work
+# !Makefile
+
+# ...even if they are in subdirectories
+!*/
+
