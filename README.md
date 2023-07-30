@@ -1,8 +1,24 @@
 # fvl
 Find Vlan ACL by ip from cisco backup files directory
 
+Before using set env CISCONFS to backup ciscos dir, or use '--cfg-dir' flag.
+
 Example use:
 ```bash
+user@ubuntu$ fvl -h
+Usage: fvl --cfg-dir=STRING <Src-IP> [<Dest-IP>]
+
+Find IP by VLAN
+
+Arguments:
+  <Src-IP>       Source IP
+  [<Dest-IP>]    Destination IP
+
+Flags:
+  -h, --help              Show context-sensitive help.
+      --cfg-dir=STRING    Path to backup cisco files ($CISCONFS)
+      --debug             Enable more output
+user@ubuntu$
 user@ubuntu$ fvl 172.24.62.2
 Host: comm3 Iface: Vlan2621 Vrf:  IfaceIp: 172.24.62.1/29 AclIn:  AclOut: vlan2621_out
 user@ubuntu$
