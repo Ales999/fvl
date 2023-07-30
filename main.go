@@ -4,35 +4,58 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
+
+	"github.com/alecthomas/kong"
 )
+
+var cli struct {
+	SrcIp string `arg:"" required:"" name:"Src-IP" help:"Source IP"`
+	DstIp string `arg:"" optional:"" name:"Dest-IP" help:"Destination IP"`
+	// Flags:
+	CfgDir string `required:"" help:"Path to backup cisco files" env:"CISCONFS" type:"existingdir"`
+	Debug  bool   `help:"Enable more output"`
+}
 
 func main() {
 
-	if len(os.Args) == 1 {
-		fmt.Println("Example Usage:")
-		fmt.Println(os.Args[0], "1.1.1.1 [2.2.2.2]")
-		os.Exit(1)
+	ctx := kong.Parse(&cli,
+		kong.Name("fvl"),
+		kong.Description("Find IP by VLAN"),
+		kong.UsageOnError(),
+	)
+
+	if cli.Debug {
+		log.Printf("Finded IP %s, Destination IP: %s", cli.SrcIp, cli.DstIp)
 	}
 
-	var srcIp = os.Args[1]
-	var dstIp string
-	if len(os.Args) > 2 {
-		dstIp = os.Args[2]
-	}
+	err := findByIPs(cli.SrcIp, cli.DstIp)
+	ctx.FatalIfErrorf(err)
+	os.Exit(0)
 
-	var scanFiles []string // Срез где будем хранить имена отобранных файлов для сканирования.
+}
+
+func findByIPs(srcIp string, dstIp string) error {
+
+	// Срез где будем хранить имена отобранных файлов для сканирования.
+	var scanFiles []string
 
 	dir, err := getCiscoConfigsPath("CISCONFS")
 	if err != nil {
 		fmt.Printf("Ошибка: %s.\n", err)
-		os.Exit(1)
+		return err
 	}
-	// Debug: 	fmt.Println("Путь для поиска:", dir)
+
+	if cli.Debug {
+		log.Println("Путь для поиска:", dir)
+	}
 
 	// Получить список элементов в директории
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		log.Fatal(err)
+		//log.Fatal(err)
+		fmt.Printf("Ошибка: %s.\n", err)
+		return err
 	}
 	// Перебираем элементы в директории и отбираем только текстовые файлы.
 	for _, e := range entries {
@@ -59,9 +82,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	//fmt.Println(scanFiles)
+	if cli.Debug {
+		log.Println("Scan Files:", scanFiles)
+		var logSt strings.Builder
+		logSt.WriteString(fmt.Sprintf("SrcIP: %s ", srcIp))
+		if len(dstIp) > 0 {
+			logSt.WriteString(fmt.Sprintf("DstIP: %s ", dstIp))
+		} else {
+			logSt.WriteString("\n")
+		}
+		log.Println(logSt.String())
+	}
 
 	//ParseFiles(dir, scanFiles, "172.24.6.66", "172.24.64.194")
 	ParseFiles(dir, scanFiles, srcIp, dstIp)
 
+	return nil
 }
