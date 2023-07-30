@@ -19,6 +19,8 @@
 
 # !Makefile
 
+!./.vscode/launch.json
+
 # ...even if they are in subdirectories
 !*/
 
