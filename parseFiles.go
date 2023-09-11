@@ -43,18 +43,22 @@ func NewIpFullInfo(
 	}
 }
 
+// String - Перевести в строку данные структуры
 func (inf *IpFullInfo) String() {
-	// Печать результата поиска.
-	if inf.eualip {
-		fmt.Print("!>\u001b[32m")
+
+	if inf.eualip { // Если искомый ip точно совпадает - выделим цветом и префиксом
+		fmt.Print("\u001b[31m!>\u001b[32m")
 	}
-	fmt.Println("Host:", inf.hostname, "Iface:", inf.faceName, "Vrf:", inf.vrfName,
-		"IfaceIp:", inf.netPrefix.String(),
-		"AclIn:", inf.aclIn, "AclOut:", inf.aclOut)
+	fmt.Print("Host: ", inf.hostname, " Iface: ", inf.faceName, " Vrf: ", inf.vrfName,
+		" IfaceIp: ", inf.netPrefix.String(),
+		" AclIn: ", inf.aclIn, " AclOut: ", inf.aclOut)
 
 	if inf.eualip {
-		fmt.Print("\u001b[0m")
+		fmt.Print("\u001b[0m\n")
+	} else {
+		fmt.Print("\n")
 	}
+
 }
 
 type AgregInfo struct {
