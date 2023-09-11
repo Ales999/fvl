@@ -14,7 +14,7 @@ var cli struct {
 	DstIp string `arg:"" optional:"" name:"Dest-IP" help:"Destination IP"`
 	// Flags:
 	CfgDir string `required:"" help:"Path to backup cisco files" env:"CISCONFS" type:"existingdir"`
-	Debug  bool   `help:"Enable more output"`
+	Debug  bool   `help:"Enable more output" short:"d"`
 }
 
 func main() {
@@ -53,17 +53,16 @@ func findByIPs(srcIp string, dstIp string) error {
 	// Получить список элементов в директории
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		//log.Fatal(err)
 		fmt.Printf("Ошибка: %s.\n", err)
 		return err
 	}
 	// Перебираем элементы в директории и отбираем только текстовые файлы.
-	for _, e := range entries {
+	for _, entr := range entries {
 		// Если это директоря то пропускаем.
-		if e.IsDir() {
+		if entr.IsDir() {
 			continue
 		}
-		var fName = e.Name()
+		var fName = entr.Name()
 		// Проверяем что это текстовый файл а не бинарный.
 		fileStat, err := checkTextFile(&dir, &fName)
 		if err != nil {
@@ -71,14 +70,13 @@ func findByIPs(srcIp string, dstIp string) error {
 		}
 		if fileStat {
 			// Добавляем в список для сканирования только если это не '*.bak' или '*.backup' файл
-			if checkNotBakFile(e) {
+			if checkNotBakFile(entr) {
 				scanFiles = append(scanFiles, fName)
-				//fmt.Println(fName)
 			}
 		}
 	}
 	if len(scanFiles) == 0 {
-		fmt.Println("Не найдены текстовые файлы для сканирования")
+		fmt.Println("Не найдены текстовые файлы бэкапов для сканирования")
 		os.Exit(1)
 	}
 

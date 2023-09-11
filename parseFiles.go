@@ -12,6 +12,7 @@ import (
 
 type IpFullInfo struct {
 	foundByIp bool         // Совпадение найдено
+	eualip    bool         // признак что искомый IP совпадает точно c найденным
 	hostname  string       // Имя хоста.
 	vrfName   string       // Имя VRF
 	faceName  string       // Имя интерфейса
@@ -22,6 +23,7 @@ type IpFullInfo struct {
 
 func NewIpFullInfo(
 	foundByIp bool,
+	eualip bool,
 	hostname string,
 	vrfName string,
 	faceName string,
@@ -31,6 +33,7 @@ func NewIpFullInfo(
 ) *IpFullInfo {
 	return &IpFullInfo{
 		foundByIp: foundByIp,
+		eualip:    eualip,
 		hostname:  hostname,
 		vrfName:   vrfName,
 		faceName:  faceName,
@@ -41,9 +44,17 @@ func NewIpFullInfo(
 }
 
 func (inf *IpFullInfo) String() {
+	// Печать результата поиска.
+	if inf.eualip {
+		fmt.Print("!>\u001b[32m")
+	}
 	fmt.Println("Host:", inf.hostname, "Iface:", inf.faceName, "Vrf:", inf.vrfName,
 		"IfaceIp:", inf.netPrefix.String(),
 		"AclIn:", inf.aclIn, "AclOut:", inf.aclOut)
+
+	if inf.eualip {
+		fmt.Print("\u001b[0m")
+	}
 }
 
 type AgregInfo struct {
@@ -113,7 +124,7 @@ func ParseFiles(patchForFiles string, fileNames []string, sourceIp string, desti
 }
 
 // Парсим файл.
-func ParseFile(fullPatchFile string, ip netip.Addr) (IpFullInfo, error) {
+func ParseFile(fullPatchFile string, findedIp netip.Addr) (IpFullInfo, error) {
 
 	var ret IpFullInfo
 
@@ -133,11 +144,13 @@ func ParseFile(fullPatchFile string, ip netip.Addr) (IpFullInfo, error) {
 	file.Close()
 
 	var foundByIp bool
+	var eualip bool            // Признак что IP совпадают
 	var hostname string        // Имя хоста.
 	var hostNameFound bool     // Имя хоста в файле найдено или нет.
 	var vrfName string         // Имя VRF
 	var faceName string        // Имя интерфейса
-	var netPrefix netip.Prefix // ip адрес и маска - пример: "192.168.1.1/24"
+	var onlyip netip.Addr      // только ip из найденной строки - пример "192.168.1.1"
+	var netPrefix netip.Prefix // полностью ip адрес и маска - пример: "192.168.1.1/24"
 	var aclIn string           // ACL на IN
 	var aclOut string          // ACL на OUT
 
@@ -177,13 +190,16 @@ func ParseFile(fullPatchFile string, ip netip.Addr) (IpFullInfo, error) {
 				// Если нашли запись об IP/MASK
 				if strings.HasPrefix(tlst, " ip address ") {
 
-					netPrefix, err = parseIpMaskFromLine(tlst)
+					netPrefix, onlyip, err = parseIpMaskFromLine(tlst)
 					if err != nil {
 						continue
 					}
 
 					// Если есть! совпадение префикса с искомым, то ищем все остальное.
-					if netPrefix.Contains(ip) {
+					if netPrefix.Contains(findedIp) {
+						if findedIp.Compare(onlyip) == 0 {
+							eualip = true
+						}
 						foundByIp = true
 						aclIn = ""
 						aclOut = ""
@@ -204,22 +220,19 @@ func ParseFile(fullPatchFile string, ip netip.Addr) (IpFullInfo, error) {
 								if strings.HasSuffix(body, "out") {
 									aclOut = aclName
 								}
-
 							}
-
 						} // end for
-
 					}
-
 				}
 			} // end for
 		}
 		if foundByIp {
 			//fmt.Println(hostname, ifaceName, vrfName, prefix.String(), aclIn, aclOut)
-			ret = *NewIpFullInfo(foundByIp, hostname, vrfName, faceName, netPrefix, aclIn, aclOut)
+			ret = *NewIpFullInfo(foundByIp, eualip, hostname, vrfName, faceName, netPrefix, aclIn, aclOut)
 
 		}
 		foundByIp = false
+		eualip = false
 	}
 
 	return ret, nil
@@ -267,7 +280,7 @@ func parseInterfaceName(line string) string {
 //
 // Output (by netip.Prefix.String()):
 // '172.24.62.201/29'
-func parseIpMaskFromLine(line string) (netip.Prefix, error) {
+func parseIpMaskFromLine(line string) (netip.Prefix, netip.Addr, error) {
 
 	// Парсим строку - разложим ёё по частям
 	cuttingByFour := strings.FieldsFunc(line, func(r rune) bool {
@@ -278,7 +291,7 @@ func parseIpMaskFromLine(line string) (netip.Prefix, error) {
 	ipAddr, err := netip.ParseAddr(cuttingByFour[2])
 	if err != nil {
 		//fmt.Println("Error parsing IP from", cuttingByFour[2])
-		return netip.Prefix{}, err
+		return netip.Prefix{}, netip.Addr{}, err
 	}
 
 	parsedMask := cuttingByFour[3]
@@ -289,6 +302,6 @@ func parseIpMaskFromLine(line string) (netip.Prefix, error) {
 
 	//fmt.Println(ipAddr, " -:- ", maskStr, " Mask Leingt:", lengthMask, prefix.String())
 
-	return prefix, nil
+	return prefix, ipAddr, nil
 
 }
