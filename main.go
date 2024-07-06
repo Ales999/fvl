@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strings"
 
@@ -21,7 +22,7 @@ func main() {
 
 	ctx := kong.Parse(&cli,
 		kong.Name("fvl"),
-		kong.Description("Find IP by VLAN"),
+		kong.Description("Find VLAN by IP"),
 		kong.UsageOnError(),
 	)
 
@@ -35,10 +36,34 @@ func main() {
 
 }
 
+// Проверям что IP в правильном формате
+func checkEnteredIp(testIp string) error {
+	if net.ParseIP(testIp) == nil {
+		return &net.ParseError{
+			Type: `IP Address`,
+			Text: testIp,
+		}
+	}
+	return nil
+}
+
 func findByIPs(srcIp string, dstIp string) error {
 
 	// Срез где будем хранить имена отобранных файлов для сканирования.
 	var scanFiles []string
+
+	// Check valied entered Src IP
+	err := checkEnteredIp(srcIp)
+	if err != nil {
+		return err
+	}
+	// Check valied entered Dst IP if entered
+	if len(dstIp) > 0 {
+		err := checkEnteredIp(dstIp)
+		if err != nil {
+			return err
+		}
+	}
 
 	dir, err := getCiscoConfigsPath("CISCONFS")
 	if err != nil {
