@@ -36,32 +36,26 @@ func main() {
 
 }
 
-// Проверям что IP в правильном формате
-func checkEnteredIp(testIp string) error {
-	if net.ParseIP(testIp) == nil {
-		return &net.ParseError{
-			Type: `IP Address`,
-			Text: testIp,
-		}
-	}
-	return nil
-}
-
 func findByIPs(srcIp string, dstIp string) error {
 
 	// Срез где будем хранить имена отобранных файлов для сканирования.
 	var scanFiles []string
 
-	// Check valied entered Src IP
-	err := checkEnteredIp(srcIp)
-	if err != nil {
-		return err
+	// Check valied entered SRC IP
+	if !checkIPAddress(srcIp) {
+		return &net.ParseError{
+			Type: "IP Address",
+			Text: srcIp,
+		}
 	}
-	// Check valied entered Dst IP if entered
+
+	// Check valied entered DST IP if entered
 	if len(dstIp) > 0 {
-		err := checkEnteredIp(dstIp)
-		if err != nil {
-			return err
+		if !checkIPAddress(dstIp) {
+			return &net.ParseError{
+				Type: "IP Address",
+				Text: dstIp,
+			}
 		}
 	}
 
