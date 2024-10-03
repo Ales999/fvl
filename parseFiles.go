@@ -11,19 +11,21 @@ import (
 )
 
 type IpFullInfo struct {
-	foundByIp bool         // Совпадение найдено
-	eualip    bool         // признак что искомый IP совпадает точно c найденным
-	hostname  string       // Имя хоста.
-	vrfName   string       // Имя VRF
-	faceName  string       // Имя интерфейса
-	netPrefix netip.Prefix // ip адрес и маска - пример: "192.168.1.1/24"
-	aclIn     string       // ACL на IN
-	aclOut    string       // ACL на OUT
+	foundByIp  bool         // Совпадение найдено
+	eualip     bool         // признак что искомый IP совпадает точно c найденным
+	ifaceSatus bool         // Признак что интерфейс не выключен
+	netPrefix  netip.Prefix // ip адрес и маска - пример: "192.168.1.1/24"
+	hostname   string       // Имя хоста.
+	vrfName    string       // Имя VRF
+	faceName   string       // Имя интерфейса
+	aclIn      string       // ACL на IN
+	aclOut     string       // ACL на OUT
 }
 
 func NewIpFullInfo(
 	foundByIp bool,
 	eualip bool,
+	ifaceSatus bool,
 	hostname string,
 	vrfName string,
 	faceName string,
@@ -32,14 +34,15 @@ func NewIpFullInfo(
 	aclOut string,
 ) *IpFullInfo {
 	return &IpFullInfo{
-		foundByIp: foundByIp,
-		eualip:    eualip,
-		hostname:  hostname,
-		vrfName:   vrfName,
-		faceName:  faceName,
-		netPrefix: netPrefix,
-		aclIn:     aclIn,
-		aclOut:    aclOut,
+		foundByIp:  foundByIp,
+		eualip:     eualip,
+		ifaceSatus: ifaceSatus,
+		hostname:   hostname,
+		vrfName:    vrfName,
+		faceName:   faceName,
+		netPrefix:  netPrefix,
+		aclIn:      aclIn,
+		aclOut:     aclOut,
 	}
 }
 
@@ -49,7 +52,12 @@ func (inf *IpFullInfo) String() {
 	if inf.eualip { // Если искомый ip точно совпадает - выделим цветом и префиксом
 		fmt.Print("\u001b[31m!>\u001b[32m")
 	}
-	fmt.Print("Host: ", inf.hostname, " Iface: ", inf.faceName, " Vrf: ", inf.vrfName,
+	var statOff string
+	// Если состояние интерфейса как административно выкдюченое (false) - то добавим инфомацию об этом.
+	if !inf.ifaceSatus {
+		statOff = " (DOWN)"
+	}
+	fmt.Print("Host: ", inf.hostname, " Iface: ", inf.faceName+statOff, " Vrf: ", inf.vrfName,
 		" IfaceIp: ", inf.netPrefix.String(),
 		" AclIn: ", inf.aclIn, " AclOut: ", inf.aclOut)
 
@@ -149,6 +157,7 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) (IpFullInfo, error) {
 
 	var foundByIp bool
 	var eualip bool            // Признак что IP совпадают
+	var ifaceSatus bool = true // Признак что интерфейс не выключен административно (по дефолту - он рабочий)
 	var hostname string        // Имя хоста.
 	var hostNameFound bool     // Имя хоста в файле найдено или нет.
 	var vrfName string         // Имя VRF
@@ -215,6 +224,10 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) (IpFullInfo, error) {
 							if !strings.HasPrefix(body, " ") {
 								break
 							}
+							// Проверим что интеофейс не выключен
+							if strings.Contains(body, "shutdown") && !strings.Contains(body, "description") {
+								ifaceSatus = false
+							}
 
 							if strings.HasPrefix(body, " ip access-group") {
 								var aclName = parseAclName(body)
@@ -232,7 +245,7 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) (IpFullInfo, error) {
 		}
 		if foundByIp {
 			//fmt.Println(hostname, ifaceName, vrfName, prefix.String(), aclIn, aclOut)
-			ret = *NewIpFullInfo(foundByIp, eualip, hostname, vrfName, faceName, netPrefix, aclIn, aclOut)
+			ret = *NewIpFullInfo(foundByIp, eualip, ifaceSatus, hostname, vrfName, faceName, netPrefix, aclIn, aclOut)
 
 		}
 		foundByIp = false

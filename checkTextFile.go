@@ -22,7 +22,5 @@ func checkTextFile(origPath, fileNameCheck *string) (bool, error) {
 	fileScanner.Split(bufio.ScanLines)
 	fileScanner.Scan()
 
-	//fmt.Println(utf8.ValidString(string(fileScanner.Text())))
-
 	return utf8.ValidString(string(fileScanner.Text())), nil
 }
