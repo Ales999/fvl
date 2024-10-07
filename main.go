@@ -41,6 +41,10 @@ func findByIPs(srcIp string, dstIp string) error {
 	// Срез где будем хранить имена отобранных файлов для сканирования.
 	var scanFiles []string
 
+	// Уберем пробелы
+	srcIp = strings.TrimSpace(srcIp)
+	dstIp = strings.TrimSpace(dstIp)
+
 	// Check valied entered SRC IP
 	if !checkIPAddress(srcIp) {
 		return &net.ParseError{
