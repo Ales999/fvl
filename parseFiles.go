@@ -82,37 +82,45 @@ func ParseFiles(patchForFiles string, fileNames []string, sourceIp string, desti
 	var destinationIpLen = len(destinationIp)
 
 	if sourceIpLen > 0 {
+		// Перевоим из строки в netip.Adds
+		srcAddr, err := netip.ParseAddr(sourceIp)
+		if err != nil {
+			fmt.Println("Error parsing", sourceIp, "Error: ", err)
+			return
+		}
 		for _, file := range fileNames {
 			parseFile := filepath.Join(patchForFiles, file)
-			srcAddr, err := netip.ParseAddr(sourceIp)
-			if err != nil {
-				fmt.Println("Error parsing", sourceIp, "Error: ", err)
-			}
-			inf, err := ParseFile(parseFile, srcAddr)
+			infs, err := ParseFile(parseFile, srcAddr)
 			if err != nil {
 				fmt.Println(err)
 			}
-			if inf.foundByIp {
-				ainfo.src = append(ainfo.src, inf)
-				//fmt.Println("Host:", inf.hostname, "Iface:", inf.faceName, "Vrf:", inf.vrfName, "AclIn:", inf.aclIn, "AclOut:", inf.aclOut)
+			for _, inf := range infs {
+				if inf.foundByIp {
+					ainfo.src = append(ainfo.src, inf)
+					//fmt.Println("Host:", inf.hostname, "Iface:", inf.faceName, "Vrf:", inf.vrfName, "AclIn:", inf.aclIn, "AclOut:", inf.aclOut)
+				}
 			}
 		}
 	}
 
 	if destinationIpLen > 0 {
+		// Перевоим из строки в netip.Adds
+		dstAddr, err := netip.ParseAddr(destinationIp)
+		if err != nil {
+			fmt.Println("Error parsing", destinationIp, "Error: ", err)
+			return
+		}
 		for _, file := range fileNames {
 			parseFile := filepath.Join(patchForFiles, file)
-			dstAddr, err := netip.ParseAddr(destinationIp)
-			if err != nil {
-				fmt.Println("Error parsing", destinationIp, "Error: ", err)
-			}
-			inf, err := ParseFile(parseFile, dstAddr)
+			infs, err := ParseFile(parseFile, dstAddr)
 			if err != nil {
 				fmt.Println(err)
 			}
-			if inf.foundByIp {
-				ainfo.dst = append(ainfo.dst, inf)
-				//fmt.Println("Host:", inf.hostname, "Iface:", inf.faceName, "Vrf:", inf.vrfName, "AclIn:", inf.aclIn, "AclOut:", inf.aclOut)
+			for _, inf := range infs {
+				if inf.foundByIp {
+					ainfo.dst = append(ainfo.dst, inf)
+					//fmt.Println("Host:", inf.hostname, "Iface:", inf.faceName, "Vrf:", inf.vrfName, "AclIn:", inf.aclIn, "AclOut:", inf.aclOut)
+				}
 			}
 		}
 	}
@@ -136,13 +144,13 @@ func ParseFiles(patchForFiles string, fileNames []string, sourceIp string, desti
 }
 
 // Парсим файл.
-func ParseFile(fullPatchFile string, findedIp netip.Addr) (IpFullInfo, error) {
+func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) {
 
-	var ret IpFullInfo
+	var ret []IpFullInfo
 
 	file, err := os.OpenFile(fullPatchFile, os.O_RDONLY, 0644)
 	if err != nil {
-		return ret, fmt.Errorf("ошибка открытия файла: %s", err)
+		return nil, fmt.Errorf("ошибка открытия файла: %s", err)
 	}
 	defer file.Close()
 
@@ -174,6 +182,8 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) (IpFullInfo, error) {
 				hostNameFound = true
 				hostname = line[9:]
 				//fmt.Println("HostName:", hostname)
+				// Раз это была строка с именем хоста то дальше и проверть нет смысла.
+				continue
 			}
 		}
 		// Ищем строку 'interface '
@@ -190,6 +200,8 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) (IpFullInfo, error) {
 
 			//Очистим от старых записей.
 			vrfName = ""
+			ifaceSatus = true
+
 			// Ищем строки с IP и MASK
 			for f, tlst := range tlsts {
 				// Если блок интерфейса заканчивается то прерываем данный for
@@ -245,7 +257,8 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) (IpFullInfo, error) {
 		}
 		if foundByIp {
 			//fmt.Println(hostname, ifaceName, vrfName, prefix.String(), aclIn, aclOut)
-			ret = *NewIpFullInfo(foundByIp, eualip, ifaceSatus, hostname, vrfName, faceName, netPrefix, aclIn, aclOut)
+			//ret = *NewIpFullInfo(foundByIp, eualip, ifaceSatus, hostname, vrfName, faceName, netPrefix, aclIn, aclOut)
+			ret = append(ret, *NewIpFullInfo(foundByIp, eualip, ifaceSatus, hostname, vrfName, faceName, netPrefix, aclIn, aclOut))
 
 		}
 		foundByIp = false

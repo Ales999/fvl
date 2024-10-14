@@ -34,13 +34,13 @@ func main() {
 		}
 	}
 
-	err := findByIPs(cli.SrcIp, cli.DstIp)
+	err := findByIPs()
 	ctx.FatalIfErrorf(err)
 	os.Exit(0)
 
 }
 
-func findByIPs(srcIp string, dstIp string) error {
+func findByIPs() error {
 
 	// Срез где будем хранить имена отобранных файлов для сканирования.
 	var scanFiles []string
@@ -48,13 +48,13 @@ func findByIPs(srcIp string, dstIp string) error {
 	var dir = &cli.CfgDir
 
 	// Уберем пробелы
-	srcIp = strings.TrimSpace(srcIp)
-	dstIp = strings.TrimSpace(dstIp)
+	srcIp := strings.TrimSpace(cli.SrcIp)
+	dstIp := strings.TrimSpace(cli.DstIp)
 
 	// Check valied entered SRC IP
 	if !checkIPAddress(srcIp) {
 		return &net.ParseError{
-			Type: "IP Address",
+			Type: "IP Source Address",
 			Text: srcIp,
 		}
 	}
@@ -63,7 +63,7 @@ func findByIPs(srcIp string, dstIp string) error {
 	if len(dstIp) > 0 {
 		if !checkIPAddress(dstIp) {
 			return &net.ParseError{
-				Type: "IP Address",
+				Type: "IP Destination Address",
 				Text: dstIp,
 			}
 		}
