@@ -27,7 +27,11 @@ func main() {
 	)
 
 	if cli.Debug {
-		log.Printf("Finded IP %s, Destination IP: %s", cli.SrcIp, cli.DstIp)
+		if len(cli.DstIp) > 0 {
+			log.Printf("Finded Source IP: %s, Destination IP: %s\n", cli.SrcIp, cli.DstIp)
+		} else {
+			log.Printf("Finded IP: %s\n", cli.SrcIp)
+		}
 	}
 
 	err := findByIPs(cli.SrcIp, cli.DstIp)
@@ -40,6 +44,8 @@ func findByIPs(srcIp string, dstIp string) error {
 
 	// Срез где будем хранить имена отобранных файлов для сканирования.
 	var scanFiles []string
+	// Директория где будем искать конфигурационные файлы.
+	var dir = &cli.CfgDir
 
 	// Уберем пробелы
 	srcIp = strings.TrimSpace(srcIp)
@@ -63,18 +69,12 @@ func findByIPs(srcIp string, dstIp string) error {
 		}
 	}
 
-	dir, err := getCiscoConfigsPath("CISCONFS")
-	if err != nil {
-		fmt.Printf("Ошибка: %s.\n", err)
-		return err
-	}
-
 	if cli.Debug {
-		log.Println("Путь для поиска:", dir)
+		log.Println("Путь для поиска:", *dir)
 	}
 
 	// Получить список элементов в директории
-	entries, err := os.ReadDir(dir)
+	entries, err := os.ReadDir(*dir)
 	if err != nil {
 		fmt.Printf("Ошибка: %s.\n", err)
 		return err
@@ -87,7 +87,7 @@ func findByIPs(srcIp string, dstIp string) error {
 		}
 		var fName = entr.Name()
 		// Проверяем что это текстовый файл а не бинарный.
-		fileStat, err := checkTextFile(&dir, &fName)
+		fileStat, err := checkTextFile(dir, &fName)
 		if err != nil {
 			continue
 		}
@@ -116,7 +116,7 @@ func findByIPs(srcIp string, dstIp string) error {
 	}
 
 	//ParseFiles(dir, scanFiles, "172.24.6.66", "172.24.64.194")
-	ParseFiles(dir, scanFiles, srcIp, dstIp)
+	ParseFiles(*dir, scanFiles, srcIp, dstIp)
 
 	return nil
 }
