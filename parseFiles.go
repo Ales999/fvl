@@ -10,70 +10,6 @@ import (
 	"strings"
 )
 
-type IpFullInfo struct {
-	foundByIp  bool         // Совпадение найдено
-	eualip     bool         // признак что искомый IP совпадает точно c найденным
-	ifaceSatus bool         // Признак что интерфейс не выключен
-	netPrefix  netip.Prefix // ip адрес и маска - пример: "192.168.1.1/24"
-	hostname   string       // Имя хоста.
-	vrfName    string       // Имя VRF
-	faceName   string       // Имя интерфейса
-	aclIn      string       // ACL на IN
-	aclOut     string       // ACL на OUT
-}
-
-func NewIpFullInfo(
-	foundByIp bool,
-	eualip bool,
-	ifaceSatus bool,
-	hostname string,
-	vrfName string,
-	faceName string,
-	netPrefix netip.Prefix,
-	aclIn string,
-	aclOut string,
-) *IpFullInfo {
-	return &IpFullInfo{
-		foundByIp:  foundByIp,
-		eualip:     eualip,
-		ifaceSatus: ifaceSatus,
-		hostname:   hostname,
-		vrfName:    vrfName,
-		faceName:   faceName,
-		netPrefix:  netPrefix,
-		aclIn:      aclIn,
-		aclOut:     aclOut,
-	}
-}
-
-// String - Перевести в строку данные структуры
-func (inf *IpFullInfo) String() {
-
-	if inf.eualip { // Если искомый ip точно совпадает - выделим цветом и префиксом
-		fmt.Print("\u001b[31m!>\u001b[32m")
-	}
-	var statOff string
-	// Если состояние интерфейса как административно выкдюченое (false) - то добавим инфомацию об этом.
-	if !inf.ifaceSatus {
-		statOff = " (DOWN)"
-	}
-	fmt.Print("Host: ", inf.hostname, " Iface: ", inf.faceName+statOff, " Vrf: ", inf.vrfName,
-		" IfaceIp: ", inf.netPrefix.String(),
-		" AclIn: ", inf.aclIn, " AclOut: ", inf.aclOut)
-
-	if inf.eualip {
-		fmt.Print("\u001b[0m\n")
-	} else {
-		fmt.Print("\n")
-	}
-
-}
-
-type AgregInfo struct {
-	src []IpFullInfo
-	dst []IpFullInfo
-}
-
 func ParseFiles(patchForFiles string, fileNames []string, sourceIp string, destinationIp string) {
 
 	var ainfo AgregInfo
@@ -143,7 +79,7 @@ func ParseFiles(patchForFiles string, fileNames []string, sourceIp string, desti
 
 }
 
-// Парсим файл.
+// Парсим найденный файл.
 func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) {
 
 	var ret []IpFullInfo
@@ -164,17 +100,19 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 	file.Close()
 
 	var foundByIp bool
-	var eualip bool            // Признак что IP совпадают
-	var ifaceSatus bool = true // Признак что интерфейс не выключен административно (по дефолту - он рабочий)
-	var hostname string        // Имя хоста.
-	var hostNameFound bool     // Имя хоста в файле найдено или нет.
-	var vrfName string         // Имя VRF
-	var faceName string        // Имя интерфейса
-	var onlyip netip.Addr      // только ip из найденной строки - пример "192.168.1.1"
-	var netPrefix netip.Prefix // полностью ip адрес и маска - пример: "192.168.1.1/24"
-	var aclIn string           // ACL на IN
-	var aclOut string          // ACL на OUT
+	var eualip bool              // Признак что IP совпадают
+	var ifaceSatus bool = true   // Признак что интерфейс не выключен административно (по дефолту - он рабочий)
+	var secondaryIp bool = false // Найденный IP это seconary IP
+	var hostname string          // Имя хоста.
+	var hostNameFound bool       // Имя хоста в файле найдено или нет.
+	var vrfName string           // Имя VRF
+	var faceName string          // Имя интерфейса
+	var onlyip netip.Addr        // только ip из найденной строки - пример "192.168.1.1"
+	var netPrefix netip.Prefix   // полностью ip адрес и маска - пример: "192.168.1.1/24"
+	var aclIn string             // ACL на IN
+	var aclOut string            // ACL на OUT
 
+	// Пробегаем по всему файлу строчка за строчкой.
 	for n, line := range txtlines {
 		// Если имя хоста еще не нашли, то проверяем его.
 		if !hostNameFound {
@@ -201,6 +139,7 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 			//Очистим от старых записей.
 			vrfName = ""
 			ifaceSatus = true
+			secondaryIp = false
 
 			// Ищем строки с IP и MASK
 			for f, tlst := range tlsts {
@@ -226,8 +165,15 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 							eualip = true
 						}
 						foundByIp = true
+						secondaryIp = false
 						aclIn = ""
 						aclOut = ""
+
+						// Проверка что это возможно seconadry
+						if strings.Contains(tlst, `secondary`) {
+							// Если это так, то установим признак
+							secondaryIp = true
+						}
 
 						// Создаем новый срез без текущей строки и перебираем его для поиска ACL, если они есть.
 						var bodyifaces = tlsts[f+1:]
@@ -250,20 +196,22 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 									aclOut = aclName
 								}
 							}
-						} // end for
+						} // end for 'bodyifaces'
 					}
-				}
-			} // end for
-		}
-		if foundByIp {
-			//fmt.Println(hostname, ifaceName, vrfName, prefix.String(), aclIn, aclOut)
-			//ret = *NewIpFullInfo(foundByIp, eualip, ifaceSatus, hostname, vrfName, faceName, netPrefix, aclIn, aclOut)
-			ret = append(ret, *NewIpFullInfo(foundByIp, eualip, ifaceSatus, hostname, vrfName, faceName, netPrefix, aclIn, aclOut))
 
+				} // End if found needed ip
+				if foundByIp {
+					ret = append(ret, *NewIpFullInfo(foundByIp, eualip, ifaceSatus, secondaryIp, hostname, vrfName, faceName, netPrefix, aclIn, aclOut))
+				}
+				foundByIp = false
+				eualip = false
+
+			} // end for 'tlsts'
 		}
+
 		foundByIp = false
 		eualip = false
-	}
+	} // end for 'txtlines'
 
 	return ret, nil
 }
