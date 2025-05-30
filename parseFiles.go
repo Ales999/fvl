@@ -10,78 +10,57 @@ import (
 	"strings"
 )
 
+// Парсим каталог с файлами и собираем информацию о IP адресах
 func ParseFiles(patchForFiles string, fileNames []string, sourceIp string, destinationIp string) {
-
 	var ainfo AgregInfo
 
-	var sourceIpLen = len(sourceIp)
-	var destinationIpLen = len(destinationIp)
-
-	if sourceIpLen > 0 {
-		// Перевоим из строки в netip.Adds
-		srcAddr, err := netip.ParseAddr(sourceIp)
-		if err != nil {
-			fmt.Println("Error parsing", sourceIp, "Error: ", err)
-			return
-		}
-		for _, file := range fileNames {
-			parseFile := filepath.Join(patchForFiles, file)
-			infs, err := ParseFile(parseFile, srcAddr)
+	parseAndAppend := func(ip string, dest *[]IpFullInfo) {
+		if len(ip) > 0 {
+			parsedAddr, err := netip.ParseAddr(ip)
 			if err != nil {
-				fmt.Println(err)
+				fmt.Println("Error parsing", ip, "Error: ", err)
+				return
 			}
-			for _, inf := range infs {
-				if inf.foundByIp {
-					ainfo.src = append(ainfo.src, inf)
-					//fmt.Println("Host:", inf.hostname, "Iface:", inf.faceName, "Vrf:", inf.vrfName, "AclIn:", inf.aclIn, "AclOut:", inf.aclOut)
+			for _, file := range fileNames {
+				parseFile := filepath.Join(patchForFiles, file)
+				infs, err := ParseFile(parseFile, parsedAddr)
+				if err != nil {
+					fmt.Println(err)
+					continue
+				}
+				for _, inf := range infs {
+					if inf.foundByIp {
+						*dest = append(*dest, inf)
+					}
 				}
 			}
 		}
 	}
 
-	if destinationIpLen > 0 {
-		// Перевоим из строки в netip.Adds
-		dstAddr, err := netip.ParseAddr(destinationIp)
-		if err != nil {
-			fmt.Println("Error parsing", destinationIp, "Error: ", err)
-			return
-		}
-		for _, file := range fileNames {
-			parseFile := filepath.Join(patchForFiles, file)
-			infs, err := ParseFile(parseFile, dstAddr)
-			if err != nil {
-				fmt.Println(err)
-			}
-			for _, inf := range infs {
-				if inf.foundByIp {
-					ainfo.dst = append(ainfo.dst, inf)
-					//fmt.Println("Host:", inf.hostname, "Iface:", inf.faceName, "Vrf:", inf.vrfName, "AclIn:", inf.aclIn, "AclOut:", inf.aclOut)
-				}
-			}
-		}
-	}
+	parseAndAppend(sourceIp, &ainfo.src)
+	parseAndAppend(destinationIp, &ainfo.dst)
 
-	// Result:
+	printResults(ainfo)
+}
 
-	if sourceIpLen > 0 {
-		//fmt.Println("Source:")
+func printResults(ainfo AgregInfo) {
+	if len(ainfo.src) > 0 {
+		// fmt.Println("Source:")
 		for _, src := range ainfo.src {
 			src.String()
 		}
 	}
 
-	if destinationIpLen > 0 {
+	if len(ainfo.dst) > 0 {
 		fmt.Println("Destination:")
 		for _, dst := range ainfo.dst {
 			dst.String()
 		}
 	}
-
 }
 
 // Парсим найденный файл.
 func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) {
-
 	var ret []IpFullInfo
 
 	file, err := os.OpenFile(fullPatchFile, os.O_RDONLY, 0644)
@@ -97,7 +76,10 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 	for scanner.Scan() {
 		txtlines = append(txtlines, scanner.Text())
 	}
-	file.Close()
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка чтения файла: %s", err)
+	}
 
 	var foundByIp bool
 	var eualip bool              // Признак что IP совпадают
@@ -119,8 +101,6 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 			if strings.HasPrefix(line, "hostname") {
 				hostNameFound = true
 				hostname = line[9:]
-				//fmt.Println("HostName:", hostname)
-				// Раз это была строка с именем хоста то дальше и проверть нет смысла.
 				continue
 			}
 		}
@@ -182,17 +162,17 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 							if !strings.HasPrefix(body, " ") {
 								break
 							}
-							// Проверим что интеофейс не выключен
+							// Проверим что интерфейс не выключен
 							if strings.Contains(body, "shutdown") && !strings.Contains(body, "description") {
 								ifaceSatus = false
 							}
 
 							if strings.HasPrefix(body, " ip access-group") {
 								var aclName = parseAclName(body)
-								if strings.HasSuffix(body, "in") {
+								if strings.HasSuffix(body, " in") {
 									aclIn = aclName
 								}
-								if strings.HasSuffix(body, "out") {
+								if strings.HasSuffix(body, " out") {
 									aclOut = aclName
 								}
 							}
@@ -258,28 +238,34 @@ func parseInterfaceName(line string) string {
 //
 // Output (by netip.Prefix.String()):
 // '172.24.62.201/29'
+//
+// parseIpMaskFromLine - парсит строку вида ' ip address 172.24.62.201 255.255.255.248'
 func parseIpMaskFromLine(line string) (netip.Prefix, netip.Addr, error) {
 
-	// Парсим строку - разложим ёё по частям
+	// Разбиваем строку на части по пробелам
 	cuttingByFour := strings.FieldsFunc(line, func(r rune) bool {
 		return r == ' '
 	})
 
-	//ipStr := cuttingByFour[2]
-	ipAddr, err := netip.ParseAddr(cuttingByFour[2])
+	// Проверяем, что строка содержит достаточное количество полей
+	if len(cuttingByFour) < 4 {
+		return netip.Prefix{}, netip.Addr{}, fmt.Errorf("недостаточное количество полей в строке")
+	}
+
+	ipStr := cuttingByFour[2]
+	ipAddr, err := netip.ParseAddr(ipStr)
 	if err != nil {
-		//fmt.Println("Error parsing IP from", cuttingByFour[2])
-		return netip.Prefix{}, netip.Addr{}, err
+		return netip.Prefix{}, netip.Addr{}, fmt.Errorf("ошибка парсинга IP: %w", err)
 	}
 
 	parsedMask := cuttingByFour[3]
 	stringMask := net.IPMask(net.ParseIP(parsedMask).To4())
+	if stringMask == nil {
+		return netip.Prefix{}, netip.Addr{}, fmt.Errorf("неверная маска подсети")
+	}
 	lengthMask, _ := stringMask.Size()
 
 	var prefix = netip.PrefixFrom(ipAddr, lengthMask)
 
-	//fmt.Println(ipAddr, " -:- ", maskStr, " Mask Leingt:", lengthMask, prefix.String())
-
 	return prefix, ipAddr, nil
-
 }
