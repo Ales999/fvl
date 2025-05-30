@@ -1,5 +1,5 @@
 module github.com/ales999/fvl
 
-go 1.23.1
+go 1.24.3
 
-require github.com/alecthomas/kong v1.6.1
+require github.com/alecthomas/kong v1.11.0
