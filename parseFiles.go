@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"net"
 	"net/netip"
 	"os"
 	"path/filepath"
@@ -108,10 +107,10 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 		if strings.HasPrefix(line, "interface ") {
 			faceName = parseInterfaceName(line)
 
-			// Выбираем остатки что еще не сканировали в отдельный слайс (только следующие 20 строк)
+			// Выбираем остатки что еще не сканировали в отдельный слайс (только следующие 21 строк)
 			var tlsts []string
-			if len(txtlines[n+1:]) > 22 { // Если осталось в файле больше 22 строк то берем только 21 строку
-				tlsts = txtlines[n+1 : n+20]
+			if len(txtlines[n+1:]) > 21 { // Если осталось в файле больше 21 строк то берем только 21 строку
+				tlsts = txtlines[n+1 : n+22]
 			} else {
 				tlsts = txtlines[n+1:]
 			}
@@ -120,6 +119,8 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 			vrfName = ""
 			ifaceSatus = true
 			secondaryIp = false
+			aclIn = ""
+			aclOut = ""
 
 			// Ищем строки с IP и MASK
 			for f, tlst := range tlsts {
@@ -259,13 +260,29 @@ func parseIpMaskFromLine(line string) (netip.Prefix, netip.Addr, error) {
 	}
 
 	parsedMask := cuttingByFour[3]
-	stringMask := net.IPMask(net.ParseIP(parsedMask).To4())
-	if stringMask == nil {
-		return netip.Prefix{}, netip.Addr{}, fmt.Errorf("неверная маска подсети")
+	maskIp, err := netip.ParseAddr(parsedMask)
+	if err != nil {
+		return netip.Prefix{}, netip.Addr{}, fmt.Errorf("неверная маска подсети: %w", err)
 	}
-	lengthMask, _ := stringMask.Size()
-
-	var prefix = netip.PrefixFrom(ipAddr, lengthMask)
+	maskBytes := maskIp.As4()
+	bits := 0
+	allOnes := true
+	for _, b := range maskBytes {
+		for i := 7; i >= 0; i-- {
+			if allOnes {
+				if b&(1<<i) != 0 {
+					bits++
+				} else {
+					allOnes = false
+				}
+			} else {
+				if b&(1<<i) != 0 {
+					return netip.Prefix{}, netip.Addr{}, fmt.Errorf("некорректная маска подсети (не.contiguous bits): %s", parsedMask)
+				}
+			}
+		}
+	}
+	var prefix = netip.PrefixFrom(ipAddr, bits)
 
 	return prefix, ipAddr, nil
 }
