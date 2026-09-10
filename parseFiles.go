@@ -82,7 +82,7 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 
 	var foundByIp bool
 	var eualip bool              // Признак что IP совпадают
-	var ifaceSatus bool = true   // Признак что интерфейс не выключен административно (по дефолту - он рабочий)
+	var ifaceStatus bool = true  // Признак что интерфейс не выключен административно (по дефолту - он рабочий)
 	var secondaryIp bool = false // Найденный IP это seconary IP
 	var hostname string          // Имя хоста.
 	var hostNameFound bool       // Имя хоста в файле найдено или нет.
@@ -117,7 +117,7 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 
 			//Очистим от старых записей.
 			vrfName = ""
-			ifaceSatus = true
+			ifaceStatus = true
 			secondaryIp = false
 			aclIn = ""
 			aclOut = ""
@@ -165,7 +165,7 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 							}
 							// Проверим что интерфейс не выключен
 							if strings.Contains(body, "shutdown") && !strings.Contains(body, "description") {
-								ifaceSatus = false
+								ifaceStatus = false
 							}
 
 							if strings.HasPrefix(body, " ip access-group") {
@@ -182,7 +182,7 @@ func ParseFile(fullPatchFile string, findedIp netip.Addr) ([]IpFullInfo, error) 
 
 				} // End if found needed ip
 				if foundByIp {
-					ret = append(ret, *NewIpFullInfo(foundByIp, eualip, ifaceSatus, secondaryIp, hostname, vrfName, faceName, netPrefix, aclIn, aclOut))
+					ret = append(ret, *NewIpFullInfo(foundByIp, eualip, ifaceStatus, secondaryIp, hostname, vrfName, faceName, netPrefix, aclIn, aclOut))
 				}
 				foundByIp = false
 				eualip = false
